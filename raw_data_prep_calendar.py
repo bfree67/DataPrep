@@ -60,13 +60,13 @@ def cyclic(X,i):
     SinX = cleanzero(np.asmatrix(np.sin(np.deg2rad(X[:,i]))))
     CosX = cleanzero(np.asmatrix(np.cos(np.deg2rad(X[:,i]))))
         
-    return SinX, CosX
+    return SinX.T, CosX.T
     
 def standardize(X,i):
 #standardize data (Mean = 0, STD = 1) by calling the column, i
 #and data matrix X
     StandX = np.asmatrix(preprocessing.scale(X[:,i]))
-    return StandX
+    return StandX.T
     
 def calencycle(X,i):
 #convert recurring calendar data (such as days of the week or month) 
@@ -74,11 +74,11 @@ def calencycle(X,i):
 #sine and cosine components. Uses the column, i and data matrix X 
 #Assumes column data is an integer, such as for a week (1 - Sunday, 2 - Monday, etc)
 #   
-    MaxSeg = (2*np.pi)/np.nanmax(X[:,i])
+    MaxSeg = (2*np.pi)/(np.nanmax(X[:,i])+1) # take max and add 1 to it
     CalSinX = cleanzero(np.asmatrix(np.sin(X[:,i]*MaxSeg)))
     CalCosX = cleanzero(np.asmatrix(np.cos(X[:,i]*MaxSeg)))
 
-    return CalSinX, CalCosX
+    return CalSinX.T, CalCosX.T
 
 def wavelet(X,i):
 ## perform discrete waveform transform on column of data
@@ -106,8 +106,8 @@ def wavelet(X,i):
 
 def eightave(X,i,d):
 #make 8 hr averages by averaging the previous 8 hrs and outputs training set
-#based on ozone limit and duration of consequtive exceedances(d) in cloumn (i)
-    #identify # of exceedances of 8 hr average
+#based on ozone limit and duration of consequtive exceedances (d) in column (i)
+#identify # of exceedances of 8 hr average
     r = len(X)      
     Xeight = np.zeros((1,r))
     for j in range (7,r):
@@ -117,7 +117,7 @@ def eightave(X,i,d):
     
     Ytemp = (Xeight > TWAozone)+0. #8hr ozone limit in ppm convert to 1/0
     Yeight = np.zeros((r,1))
-    
+
     #count consequtive exceedances   
     count = 0.
     for j in range(r):
@@ -148,7 +148,7 @@ def eightave(X,i,d):
                         #print k, w
             Y2 = (Y2==(k+1))+0.       
             Y1 = np.append(Y1,Y2,axis = 1)                      
-    
+ 
     return Y1
 
 def timedelay(X,delay):
@@ -176,7 +176,7 @@ def makedata():
     newpath = 'c:\\\TARS\PhD\LazyProgrammer'
     os.chdir(newpath) 
 ########################## Set name of data file
-    data_file_name = "dates.xlsx"
+    data_file_name = "xmasdata.xlsx"
     print "Loading raw data file:", data_file_name, "\n"
 
     #Excel WorkSheet 0 = input X data, WorkSheet 1 = input Y data
@@ -187,23 +187,27 @@ def makedata():
     X = load_file(data_file_name,XDataSheet)
     return X
     
-def SaveFile(Xtrain, Ytrain, SaveData):
+def SaveFile(Xtrain, Ytrain, Xverify, Yverify, Xtest, Ytest, SaveData):
     newpath = 'c:\\\TARS\PhD\LazyProgrammer'
     
     if SaveData == True:
     # save files to output file
         filename = 'outputDates.xlsx'
         writer = ExcelWriter(filename)
-        pd.DataFrame(Xtrain).to_excel(writer,'Input')
-        pd.DataFrame(Ytrain).to_excel(writer,'Output')
+        pd.DataFrame(Xtrain).to_excel(writer,'InputTrain')
+        pd.DataFrame(Ytrain).to_excel(writer,'OutputTrain')
+        pd.DataFrame(Xverify).to_excel(writer,'InputVerify')
+        pd.DataFrame(Yverify).to_excel(writer,'OutputVerify')
+        pd.DataFrame(Xtest).to_excel(writer,'InputTest')
+        pd.DataFrame(Ytest).to_excel(writer,'OutputTest')
         print'File saved in ', newpath + '\\' + filename
-    
-    return Xtrain,Ytrain
+    return
  
-#####Call data 
+##### Call data 
         
 Xt = makedata()
 
+########## Step 1
 ###########rebuild raw data into training data set. 
 
 ######## function dictionary
@@ -212,22 +216,60 @@ Xt = makedata()
 #cyclic and calencycle each require 2 output vectors
 #wavelet returns an output matrix X
 
-    #Xhs, Xhc = cyclic(X*360,0) #convert hours to sine/cosine 
-Ds=np.asmatrix(Xt[:,0]).T
-Dc = np.asmatrix(Xt[:,1]).T
+#Xhs, Xhc = cyclic(X*360,0) #convert hours to sine/cosine 
+X0,X1 = calencycle(Xt,0)
+X3, X4 = cyclic(Xt,1)
+X5 = standardize(Xt,2)
+X6 = standardize(Xt,3)
+X7 = standardize(Xt,4)
  
-    # build training matrix of input X
-Xtr = np.concatenate((Ds,Dc), axis =1)
+#build input matrix
+Xtot = np.concatenate((X0,X1, X3, X4, X5, X6, X7), axis =1)
 
-Xtrain = timedelay(Xtr,2)
-n = len(Xtrain)  
+######### Step 2
+#create time delays by 1 hour buy changing timedelay input (0 = no delay)
+#oldest set shifted to the right
+Xtr = timedelay(Xtot,2)
+n = len(Xtr)  
 
-    #make training output Y for 8 hr ozone from column i in data X
-Y8 = eightave(Xtr,1,4)
-    #Ytrain = Y8[len(Y8)-n:]  #trim the first rows to match the size of X
-Ytrain = Xtr
+######## Step 3
+#based on ozone limit and duration of consequtive exceedances (d) in column (i)
+#make training output Y for 8 hr ozone from column i in data X
+d = 1 # of consequtive ozone events
+i = 4 # column to average (column begins at 0)
+Y8 = eightave(Xt,i,d)
+Ytr = Y8[len(Y8)-n:]  #trim the first rows to match the size of X
 
-SaveFile(Xtrain,Ytrain, True)
+##### Step 4
+#Chop up data set for Training, Test and Verify sets
+trainper = .7
+verifyper = .15
+testper = .15
+
+sum_per = trainper + testper + verifyper
+
+#make values sum to 1 if they do not already
+if (sum_per != 1):
+    trainper = trainper/sum_per
+    verifyper = verifyper/sum_per
+    testper = testper/sum_per
+
+#set ranges for data indices
+train_stop = int(n*trainper)
+verify_stop = train_stop + int(n*verifyper)
+test_stop = n - verify_stop
+
+Xtrain = Xtr[0:train_stop,:]
+Ytrain = Ytr[0:train_stop,:]
+
+Xverify = Xtr[train_stop+1:verify_stop,:]
+Yverify = Ytr[train_stop+1:verify_stop,:]
+
+Xtest = Xtr[verify_stop+1:n,:]
+Ytest = Ytr[verify_stop+1:n,:]
+
+#save output training file
+SaveFile(Xtrain,Ytrain, Xverify, Yverify, Xtest, Ytest, True)
 
 
    
