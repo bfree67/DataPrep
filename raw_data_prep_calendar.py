@@ -1,6 +1,7 @@
 ### Program used to prepare raw data for machine language training
 ### Includes functions to covert cyclic data and standardize continuous data
 ### Has classifiers for binary comparisons and time delays for outputs
+### Input data file cannot have text headers!
 ### 16 May 2017 Brian Freeman
 
 import time
@@ -174,10 +175,10 @@ def makedata():
 #### if True, save data to file, otherwise don't
 
     # Put training data file in the same folder as py code but if not, set path
-    newpath = 'c:\\\TARS\PhD\LazyProgrammer'
+    newpath = 'c:\\\TARS\PhD\LazyProgrammer'   #example input path
     os.chdir(newpath) 
 ########################## Set name of data file
-    data_file_name = "xmasdata.xlsx"
+    data_file_name = "xmasdata.xlsx"  #example input file
     print "Loading raw data file:", data_file_name, "\n"
 
     #Excel WorkSheet 0 = input X data, WorkSheet 1 = input Y data
@@ -189,11 +190,11 @@ def makedata():
     return X
     
 def SaveFile(Xtrain, Ytrain, Xverify, Yverify, Xtest, Ytest, SaveData):
-    newpath = 'c:\\\TARS\PhD\LazyProgrammer'
+    newpath = 'c:\\\TARS\PhD\LazyProgrammer'   #example output path
     
     if SaveData == True:
     # save files to output file
-        filename = 'outputDates.xlsx'
+        filename = 'outputDates.xlsx'    #example output file
         writer = ExcelWriter(filename)
         pd.DataFrame(Xtrain).to_excel(writer,'InputTrain')
         pd.DataFrame(Ytrain).to_excel(writer,'OutputTrain')
@@ -218,28 +219,40 @@ Xt = makedata()
 #wavelet returns an output matrix X
 
 #Xhs, Xhc = cyclic(X*360,0) #convert hours to sine/cosine 
-X0,X1 = calencycle(Xt,0)
-X3, X4 = cyclic(Xt,1)
-X5 = standardize(Xt,2)
-X6 = standardize(Xt,3)
-X7 = standardize(Xt,4)
- 
+X0, X1 = calencycle(Xt,0)
+X2, X3 = cyclic(Xt,1)
+X4 = standardize(Xt,2)
+X5 = standardize(Xt,3)
+X6 = standardize(Xt,4)
+X7 = standardize(Xt,5)
+
 #build input matrix
-Xtot = np.concatenate((X0,X1, X3, X4, X5, X6, X7), axis =1)
+Xtot = np.concatenate((X0, X1, X2, X3, X4, X5, X6, X7), axis =1)
 
 ######### Step 2
 #create time delays by 1 hour buy changing timedelay input (0 = no delay)
 #oldest set shifted to the right
-Xtr = timedelay(Xtot,2)
+delay = 0
+Xtr = timedelay(Xtot,delay)
 n = len(Xtr)  
 
 ######## Step 3
 #based on ozone limit and duration of consequtive exceedances (d) in column (i)
 #make training output Y for 8 hr ozone from column i in data X
-d = 1 # of consequtive ozone events
-i = 4 # column to average (column begins at 0)
-Y8 = eightave(Xt,i,d)
-Ytr = Y8[len(Y8)-n:]  #trim the first rows to match the size of X
+d = 4 # of consequtive ozone events
+
+######## make arrays for each station being used (in this case - 2 stations)
+### Station 1
+i_1 = 4 # column to average (column begins at 0)
+Y8_1 = eightave(Xt,i_1,d)
+Ytr_1 = Y8_1[len(Y8_1)-n:]  #trim the first rows to match the size of X
+
+### Station 2
+i_2 = 5 # column to average (column begins at 0)
+Y8_2 = eightave(Xt,i_2,d)
+Ytr_2 = Y8_2[len(Y8_1)-n:]  #trim the first rows to match the size of X
+
+Ytr = np.concatenate((Y8_1, Y8_2), axis =1)
 
 ##### Step 4
 #Chop up data set for Training, Test and Verify sets
@@ -271,10 +284,3 @@ Ytest = Ytr[verify_stop+1:n,:]
 
 #save output training file
 SaveFile(Xtrain,Ytrain, Xverify, Yverify, Xtest, Ytest, True)
-
-
-   
-
-
-                                
-          
