@@ -1,6 +1,7 @@
 ### Program used to prepare raw data for machine language training
 ### Includes functions to covert cyclic data and standardize continuous data
 ### Has classifiers for binary comparisons and time delays for outputs
+### 16 May 2017 Brian Freeman
 
 import time
 #### Start the clock
