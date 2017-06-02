@@ -265,6 +265,8 @@ def SaveFile(Xtrain, Ytrain, Xverify, Yverify, Xtest, Ytest, SaveData):
     return
 ############################### Start Executing 
 ##### Call data 
+
+start = time.clock()
         
 Xt = makedata()
 
@@ -316,7 +318,7 @@ Ytr_1 = Y8_1[len(Y8_1)-n:]  #trim the first rows to match the size of X
 
 ### Station 2
 i_2 = 5 # column to average (column begins at 0)
-Y8_2 = eightave(Xt,i_2,d)
+Y8_2 = eightave_gt_lt(Xt,i_2,d)
 Ytr_2 = Y8_2[len(Y8_1)-n:]  #trim the first rows to match the size of X
 
 Ytr = np.concatenate((Y8_1, Y8_2), axis =1)
@@ -351,3 +353,11 @@ Ytest = Ytr[verify_stop+1:n,:]
 
 #save output training file
 SaveFile(Xtrain,Ytrain, Xverify, Yverify, Xtest, Ytest, True)
+
+    # stop clock
+end = time.clock() 
+    
+if (end-start > 60):
+    print "data prepared in {0:.2f} minutes".format((end-start)/60.)
+else:
+    print "data prepared in {0:.2f} seconds".format((end-start)/1.)
