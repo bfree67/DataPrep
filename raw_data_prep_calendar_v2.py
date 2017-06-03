@@ -5,17 +5,16 @@
 ### 16 May 2017 Brian Freeman
 
 import time
-
 import pandas as pd
 from pandas import ExcelWriter
 import numpy as np
-import matplotlib.pyplot as plt
-from numpy.random import uniform
 import os
-import sys
 import copy
 from sklearn import preprocessing
 import pywt    # for wavelet processing
+
+
+TWAozone = 0.051 ##### set 8 hr ozone limit
 
 def load_file(datafile,worksheet=0):
 ### - Load data from excel file function
@@ -118,18 +117,13 @@ def eightave(X,i,d):
 #identify # of consecutive exceedances of 8 hr average
 #Creates a d+1 column matrix with 1st column 8hr ave execeedance of 1 event
 
-###################################### Execute
-    d = 5 # critical number of consequtive exceedances
-    X = makedata()  #load data
-    i = 4   # pick a column from Xtot
-
     ## start by taking 8 hr ave of input data
     r = len(X)      
     Xeight = np.zeros((r,1))
     for j in range (7,r):
         Xeight[j,0] = X[j:j+8,i].mean()
             
-    TWAozone = 0.051 ##### set 8 hr ozone limit
+    #TWAozone = 0.051 ##### set 8 hr ozone limit
     
     Ytemp = ((Xeight > TWAozone)+0.) #8hr ozone limit in ppm convert to 1/0
     Yeight = np.zeros((r,1))
@@ -149,6 +143,7 @@ def eightave(X,i,d):
                 count =- 1
                 if count <0:
                     count = 0
+            #print "8ave ",count, Ytemp[j,0]
     #### reset/update terms for next iteration of k            
         count = 0
         conseq += 1
@@ -162,52 +157,52 @@ def eightave_gt_lt(X,i,d):
 #based on ozone limit and duration of consequtive exceedances (d) in column (i)
 #identify # of consecutive exceedances of 8 hr average. 
 #Creates a 3 column matrix Y2 - 1 event 8hr ave, sequences <= d, and sequences > d
-
-###################################### Execute
-    X = makedata()  #load data
-
+    global local_var
+    
     ## start by taking 8 hr ave of input data
     r = len(X)      
     Xeight = np.zeros((r,1))
     for j in range (7,r):
         Xeight[j,0] = X[j:j+8,i].mean()
             
-    TWAozone = 0.051 ##### set 8 hr ozone limit
+    #TWAozone = 0.051 ##### set 8 hr ozone limit
     
-    Ytemp = ((Xeight > TWAozone)+0.) #8hr ozone limit in ppm convert to 1/0
-    Yeight = np.zeros((r,1))
-   
-    count = 0 #count consequtive exceedances 
+    Y_temp1 = ((Xeight > TWAozone) + 0.) #8hr ozone limit in ppm convert to 1/0
+    
+    count1 = 0 #count consequtive exceedances 
 
-    Y2 = copy.copy(Ytemp)  #Y1 will be the out put matrix. Start with Ytemp
-    Ylt = np.zeros((r,1))
-    Ygt = np.zeros((r,1))
-    count = 0
+    Y2 = copy.copy(Y_temp1)  #Y2 will be the output matrix. Start with Ytemp column
+    Y_lt = np.zeros((r,1))
+    Y_gt = np.zeros((r,1))
     
     ########## Prepare data columns
     for j in range(r):
-        if Ytemp[j,0] == 1.:
-            count += 1
-            ######## less than equal to column
-            if count <= d and count > 1:
-                Ylt[j-1,:] = 1. #sets indicator at beginning of sequence
-            if count > 2:
-                Ylt[j-1,:] = 1. #sets indicator at beginning of sequence
-            ###### greater than column
-            if count > d:
-                Ygt[j-d,:] = 1. #sets indicator at beginning of sequence
-    else:
-        count =- 1
-        if count < 0:
-            count = 0
+        if Y_temp1[j,0] == 1.:
+            count1 = count1 + 1
 
+            if count1 <= d and count1 > 1:
+                Y_lt[j-1,:] = 1. #sets indicator at beginning of sequence
+                print Y_lt[j-1,:]
+            if count1 > 2:
+                Y_lt[j-1,:] = 1. #sets indicator at beginning of sequence
+                print Y_lt[j-1,:]
+            if count1 > d:
+                Y_gt[j-d,:] = 1. #sets indicator at beginning of sequence
+                print Y_lt[j-1,:]
+ 
+        else:
+            count1 = 0
+            if count1 < 0:
+                count1 = 0
+            
+        print "8-gtlt ", count1, Y_temp1[j,0]
     #### reset/update terms for next iteration of k            
-    count = 0
-    Y2 = np.append(Y2,Ylt,axis = 1)
-    Y2 = np.append(Y2,Ygt,axis = 1)
-    Ylt = np.zeros((r,1)) 
-    Ygt = np.zeros((r,1)) 
-                      
+    count1 = 0
+    Y2 = np.append(Y2,Y_lt,axis = 1)
+    Y2 = np.append(Y2,Y_gt,axis = 1)
+    Y_lt = np.zeros((r,1)) 
+    Y_gt = np.zeros((r,1)) 
+                  
     return Y2
 
 def timedelay(X,delay):
@@ -310,36 +305,36 @@ n = len(Xtr)
 ### less than the critical sconsequtive sequence number, d, and consequtive events
 ### greater than d.
 
-d = 4 #### Max # of consequtive events or critical # of consequtive events
+d = 3 #### Max # of consequtive events or critical # of consequtive events
 ### Station 1
 i_1 = 4 # column to average (column begins at 0)
 Y8_1 = eightave(Xt,i_1,d)
 Ytr_1 = Y8_1[len(Y8_1)-n:]  #trim the first rows to match the size of X
 
 ### Station 2
-i_2 = 5 # column to average (column begins at 0)
+i_2 = 4 # column to average (column begins at 0)
 Y8_2 = eightave_gt_lt(Xt,i_2,d)
-Ytr_2 = Y8_2[len(Y8_1)-n:]  #trim the first rows to match the size of X
+Ytr_2 = Y8_2[len(Y8_2)-n:]  #trim the first rows to match the size of X
 
 Ytr = np.concatenate((Y8_1, Y8_2), axis =1)
 
 ##### Step 4
 #Chop up data set for Training, Test and Verify sets
-trainper = .7
-verifyper = .15
-testper = .15
+train_per = .7
+verify_per = .15
+test_per = .15
 
-sum_per = trainper + testper + verifyper
+sum_per = train_per + test_per + verify_per
 
 #make values sum to 1 if they do not already
 if (sum_per != 1):
-    trainper = trainper/sum_per
-    verifyper = verifyper/sum_per
-    testper = testper/sum_per
+    train_per = train_per/sum_per
+    verify_per = verify_per/sum_per
+    test_per = test_per/sum_per
 
 #set ranges for data indices
-train_stop = int(n*trainper)
-verify_stop = train_stop + int(n*verifyper)
+train_stop = int(n*train_per)
+verify_stop = train_stop + int(n*verify_per)
 test_stop = n - verify_stop
 
 Xtrain = Xtr[0:train_stop,:]
