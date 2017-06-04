@@ -5,48 +5,45 @@
 ### 16 May 2017 Brian Freeman
 
 import time
+#### Start the clock
+start = time.clock()
+
 import pandas as pd
 from pandas import ExcelWriter
 import numpy as np
+import matplotlib.pyplot as plt
+from numpy.random import uniform
 import os
+import sys
 import copy
 from sklearn import preprocessing
 import pywt    # for wavelet processing
 
-
+#### Start the clock
+start = time.clock()
+newpath = 'c:\\\TARS\PhD\LazyProgrammer'   #example output path
 TWAozone = 0.051 ##### set 8 hr ozone limit
 
 def load_file(datafile,worksheet=0):
 ### - Load data from excel file function
-    #### Start the clock
-    start = time.clock()   
-    
     data_fil = pd.read_excel(datafile, 
                 sheetname=worksheet, 
                 header=0,         #assumes 1st row are header names
                 skiprows=None, 
                 skip_footer=0, 
-                index_col=None, 
+                index_col= None,  #default = None, 0 if 1st column is an index  
                 parse_cols=None, #default = None
                 parse_dates=False, 
                 date_parser=None, 
                 na_values=None, 
                 thousands=None, 
-                convert_float=True, 
+                convert_float=False, 
                 has_index_names=None, 
                 converters=None, 
                 engine=None)
-    # stop clock
-    end = time.clock() 
-    
-    if (end-start > 60):
-        print "data loaded in {0:.2f} minutes".format((end-start)/60.)
-    else:
-        print "data loaded in {0:.2f} seconds".format((end-start)/1.)
-    
-    data = data_fil.fillna(0.).values #convert all NaN to 0. and converts to np.matrix
-    
-    return data 
+                
+    data = data_fil.fillna(0.).values #convert all NaN to 0. and converts to numpy.matrix
+    return data  
 
 def cleanzero(X):
 #convert low values to zero
@@ -114,42 +111,47 @@ def wavelet(X,i):
 def eightave(X,i,d):
 #make 8 hr averages by averaging the previous 8 hrs and outputs training set
 #based on ozone limit and duration of consequtive exceedances (d) in column (i)
-#identify # of consecutive exceedances of 8 hr average
-#Creates a d+1 column matrix with 1st column 8hr ave execeedance of 1 event
-
-    ## start by taking 8 hr ave of input data
+#identify # of exceedances of 8 hr average
     r = len(X)      
-    Xeight = np.zeros((r,1))
+    Xeight = np.zeros((1,r))
     for j in range (7,r):
-        Xeight[j,0] = X[j:j+8,i].mean()
-            
-    #TWAozone = 0.051 ##### set 8 hr ozone limit
+            Xeight[0,j] = X[j:j+8,i].mean()
     
-    Ytemp = ((Xeight > TWAozone)+0.) #8hr ozone limit in ppm convert to 1/0
+    Ytemp = (Xeight > TWAozone)+0. #8hr ozone limit in ppm convert to 1/0
     Yeight = np.zeros((r,1))
-   
-    count = 0 #count consequtive exceedances 
-    conseq = 2 #set limit for consequtive exceedances for each iteration
 
-    Y1 = copy.copy(Ytemp)  #Y1 will be the out put matrix. Start with Ytemp
-
-    for k in range (d-1):
-        for j in range(r):
-            if Ytemp[j,0] == 1.:
-                count += 1
-                if count >= conseq:
-                    Yeight[j-conseq+1,:] = 1. #sets indicator at beginning of sequence
-            else:
-                count =- 1
-                if count <0:
-                    count = 0
-            #print "8ave ",count, Ytemp[j,0]
-    #### reset/update terms for next iteration of k            
-        count = 0
-        conseq += 1
-        Y1 = np.append(Y1,Yeight,axis = 1)
-        Yeight = np.zeros((r,1)) 
-                      
+    #count consequtive exceedances and make first column of Yeight
+    count = 0.
+    for j in range(r):
+        if Ytemp[0,j] == 1.:
+            count += 1.
+            Yeight[j,:] = 1.
+        else:
+            for k in range(int(count),0,-1):
+                Yeight[j-k,:]=count
+                count -= 1.            
+            count = 0.
+    
+    #build Youtput matrix from max durations to hourly
+    for k in range(0,d):
+        if k == 0:
+            Y1 = (Yeight >=1.)+0.
+        else:
+            ### see if values are multiples
+            Y2 = copy.copy(Yeight) ### reset Y2 - needs special copy
+            #print Y2.sum()
+            
+            for w in range(0,len(Yeight)):
+                if Y2[w,:] > 0.: # don't test 0's
+                    #print w,k
+                    
+                    if Y2[w,:]%(k+1) == 0.:
+                        Y2[w,:]=(k+1)
+                        #print k, w
+            Y2 = (Y2==(k+1))+0.       
+            Y1 = np.append(Y1,Y2,axis = 1)
+            #Y1 = Y1[7,:]        #remove first 7 rows used for 1st average                      
+ 
     return Y1
 
 def eightave_gt_lt(X,i,d):
@@ -157,8 +159,7 @@ def eightave_gt_lt(X,i,d):
 #based on ozone limit and duration of consequtive exceedances (d) in column (i)
 #identify # of consecutive exceedances of 8 hr average. 
 #Creates a 3 column matrix Y2 - 1 event 8hr ave, sequences <= d, and sequences > d
-    global local_var
-    
+ 
     ## start by taking 8 hr ave of input data
     r = len(X)      
     Xeight = np.zeros((r,1))
@@ -182,55 +183,55 @@ def eightave_gt_lt(X,i,d):
 
             if count1 <= d and count1 > 1:
                 Y_lt[j-1,:] = 1. #sets indicator at beginning of sequence
-                print Y_lt[j-1,:]
+                #print Y_lt[j-1,:]
             if count1 > 2:
                 Y_lt[j-1,:] = 1. #sets indicator at beginning of sequence
-                print Y_lt[j-1,:]
+                #print Y_lt[j-1,:]
             if count1 > d:
                 Y_gt[j-d,:] = 1. #sets indicator at beginning of sequence
-                print Y_lt[j-1,:]
+                #print Y_lt[j-1,:]
  
         else:
             count1 = 0
             if count1 < 0:
                 count1 = 0
             
-        print "8-gtlt ", count1, Y_temp1[j,0]
+        #print "8-gtlt ", count1, Y_temp1[j,0]
     #### reset/update terms for next iteration of k            
     count1 = 0
     Y2 = np.append(Y2,Y_lt,axis = 1)
     Y2 = np.append(Y2,Y_gt,axis = 1)
+    #Y2 = Y2[7,:]  #remove first 7 rows used for 1st average 
+    
     Y_lt = np.zeros((r,1)) 
     Y_gt = np.zeros((r,1)) 
                   
     return Y2
 
-def timedelay(X,delay):
+def timedelay(X,delay=0, interval = 1):
 ##make time lag by # of hrs by shifting dataset and incrementing backward
 ##reduces the number of rows by the amount of delay
 
-    n,r = np.shape(X)
+    n = len(X)
+    X2 = copy.copy(Ytr_raw)    #make a deep copy
 
-    X2 = copy.copy(X)    #make a deep copy
+    Ytr = X2  #current time sample with the max size
 
-    Xdelay = X2[delay:n,:]  #current time sample with the max size
-    ndelay, rdelay = np.shape(Xdelay)
-
-    for lag in range (delay-1,-1,-1): #count backwards but don't count first value
+    for lag in range (interval,(delay+1),interval): #start, stop, step
         Xtemp = X2[lag:n,:]
-        Xtemp = Xtemp[0:ndelay,:]  # resize the matrix to match the delay
-        Xdelay = np.concatenate((Xdelay,Xtemp), axis =1)
+        ndelay = len (Xtemp)
+        Ytr = Ytr[0:ndelay,:]  # resize the matrix to match the delay
+        Ytr = np.concatenate((Ytr,Xtemp), axis =1)
     
-    return Xdelay
-    
+    return Ytr
+  
 def makedata():
-################### Load raw data from Excel file
-    #### if True, save data to file, otherwise don't
+#### if True, save data to file, otherwise don't
 
     # Put training data file in the same folder as py code but if not, set path
-    newpath = 'c:\\\TARS\PhD\LazyProgrammer'   #example input path
+    #newpath = 'c:\\\TARS\PhD\LazyProgrammer'   #example input path
     os.chdir(newpath) 
-    ########### Set name of data file
+########################## Set name of data file
     data_file_name = "xmasdata.xlsx"  #example input file
     print "Loading raw data file:", data_file_name, "\n"
 
@@ -243,9 +244,7 @@ def makedata():
     return X
     
 def SaveFile(Xtrain, Ytrain, Xverify, Yverify, Xtest, Ytest, SaveData):
-#################### Save converted data into new Excel file    
-    newpath = 'c:\\\TARS\PhD\LazyProgrammer'   #example output path
-    
+        
     if SaveData == True:
     # save files to output file
         filename = 'outputDates.xlsx'    #example output file
@@ -258,10 +257,8 @@ def SaveFile(Xtrain, Ytrain, Xverify, Yverify, Xtest, Ytest, SaveData):
         pd.DataFrame(Ytest).to_excel(writer,'OutputTest')
         print'File saved in ', newpath + '\\' + filename
     return
-############################### Start Executing 
+ 
 ##### Call data 
-
-start = time.clock()
         
 Xt = makedata()
 
@@ -283,59 +280,59 @@ X6 = standardize(Xt,4)
 X7 = standardize(Xt,5)
 
 #build input matrix
-Xtot = np.concatenate((X0, X1, X2, X3, X4, X5, X6, X7), axis =1)
-
-######### Step 2
-#create time delays by 1 hour buy changing timedelay input (0 = no delay)
-#oldest set shifted to the right
-delay = 0
-Xtr = timedelay(Xtot,delay)
-n = len(Xtr)  
+Xtr = np.concatenate((X0, X1, X2, X3, X4, X5, X6, X7), axis =1)
 
 ######## Step 3
 #based on ozone limit and duration of consequtive exceedances (d) in column (i)
 #make training output Y for 8 hr ozone from column i in data X
-
-######## make output arrays for each station being used (in this case - 2 stations)
-### function eightave takes training matrix X, column index i, and critical consequtive
-### exceedance i and makes a matrix of binary columns starting with the 1st column [0] as 1 event
-### and going to column d-1 consequtive events (total of d columns)
-
-### function eightave_gt_lt gives 3 output columns only - 1 event, events
-### less than the critical sconsequtive sequence number, d, and consequtive events
-### greater than d.
-
-d = 3 #### Max # of consequtive events or critical # of consequtive events
+d = 4 # of consequtive ozone events
+n = len(Xtr)
+######## make arrays for each station being used (in this case - 2 stations)
 ### Station 1
 i_1 = 4 # column to average (column begins at 0)
-Y8_1 = eightave(Xt,i_1,d)
-Ytr_1 = Y8_1[len(Y8_1)-n:]  #trim the first rows to match the size of X
+Y8_1 = eightave_gt_lt(Xt,i_1,d)
+#Ytr_1 = Y8_1[len(Y8_1)-n:]  #trim the first rows to match the size of X
 
 ### Station 2
 i_2 = 4 # column to average (column begins at 0)
 Y8_2 = eightave_gt_lt(Xt,i_2,d)
-Ytr_2 = Y8_2[len(Y8_2)-n:]  #trim the first rows to match the size of X
+#Ytr_2 = Y8_2[len(Y8_1)-n:]  #trim the first rows to match the size of X
 
-Ytr = np.concatenate((Y8_1, Y8_2), axis =1)
+Ytr_raw = np.concatenate((Y8_1, Y8_2), axis =1)
+
+######### Trim first 7 rows off data used for 8 hr ave that have no assigned output
+Xtr = Xtr[7:n,:]
+Ytr_raw = Ytr_raw[7:n,:]
+n1 = len(Ytr_raw)
+
+######### Step 2
+#create time delays by 1 hour buy changing timedelay output (0 = no delay)
+#oldest set shifted to the right
+delay = 12
+interval = 6
+
+Ytr = timedelay(Ytr_raw, delay, interval)
+n2 = len(Ytr)   #final matrix size
+Xtr = Xtr[0:n2,:]
 
 ##### Step 4
 #Chop up data set for Training, Test and Verify sets
-train_per = .7
-verify_per = .15
-test_per = .15
+trainper = .7
+verifyper = .15
+testper = .15
 
-sum_per = train_per + test_per + verify_per
+sum_per = trainper + testper + verifyper
 
 #make values sum to 1 if they do not already
 if (sum_per != 1):
-    train_per = train_per/sum_per
-    verify_per = verify_per/sum_per
-    test_per = test_per/sum_per
+    trainper = trainper/sum_per
+    verifyper = verifyper/sum_per
+    testper = testper/sum_per
 
 #set ranges for data indices
-train_stop = int(n*train_per)
-verify_stop = train_stop + int(n*verify_per)
-test_stop = n - verify_stop
+train_stop = int(n2*trainper)
+verify_stop = train_stop + int(n2*verifyper)
+test_stop = n2 - verify_stop
 
 Xtrain = Xtr[0:train_stop,:]
 Ytrain = Ytr[0:train_stop,:]
@@ -349,10 +346,3 @@ Ytest = Ytr[verify_stop+1:n,:]
 #save output training file
 SaveFile(Xtrain,Ytrain, Xverify, Yverify, Xtest, Ytest, True)
 
-    # stop clock
-end = time.clock() 
-    
-if (end-start > 60):
-    print "data prepared in {0:.2f} minutes".format((end-start)/60.)
-else:
-    print "data prepared in {0:.2f} seconds".format((end-start)/1.)
