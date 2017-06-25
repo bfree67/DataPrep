@@ -350,7 +350,7 @@ Ytr_raw = Ytr_raw[7:n,:]
 n1 = len(Ytr_raw)
 '''
 ######### Step 3
-#create time delays for output by 1 hour buy changing timedelay input (0 = no delay)
+#create time delays for output by 1 hour by changing timedelay input (0 = no delay)
 #interval = step over delay ranges so only multiples occur.
 #oldest set shifted to the right
 '''
