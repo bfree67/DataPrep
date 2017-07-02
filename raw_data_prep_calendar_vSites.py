@@ -42,9 +42,9 @@ def load_file(datafile,worksheet=0):
     end = time.clock() 
     
     if (end-start > 60):
-        print "data loaded in {0:.2f} minutes".format((end-start)/60.)
+        print "Data loaded in {0:.2f} minutes".format((end-start)/60.)
     else:
-        print "data loaded in {0:.2f} seconds".format((end-start)/1.)
+        print "Data loaded in {0:.2f} seconds".format((end-start)/1.)
     
     data = data_fil.fillna(0.).values #convert all NaN to 0. and converts to np.matrix
     
@@ -221,6 +221,39 @@ def timedelay(X,delay = 0,interval = 1):
         Ytr = np.concatenate((Ytr,Xtemp), axis =1)
     
     return Ytr
+
+def onehotencode(X):
+    '''#converts input array X into a matrix of based on the maximum number in the array
+    #input array must be integers with sequential classes (like hours or months or days)
+    '''
+    nb_classes = X.max()
+    targets = np.array(X.T).reshape(-1) - 1
+    Xhot = np.eye(nb_classes)[targets] + 0.
+    return Xhot
+
+def binaryconvert(X):
+    '''
+    converts integer input array into binary matrix - takes largest integer and 
+    determines maximum bits. Puts each 0/1 into appropriate bit bin from LSB to MSB
+    '''
+    n = len(X) # length of array data
+    nb_classes = bin(X.max()) #convert max. value to binary to determine bits
+    nb = len(nb_classes[2:]) #strip out first 2 characters and count characters
+
+    Xb = np.zeros((n,nb)) #create padded matrix to fill
+
+    for data_index in range(n):
+        bit = bin(X[data_index,0])
+        bit = bit[2:]
+        bit_count = len(bit)
+        delta_bit = nb - bit_count 
+    
+        for bit_index in range((bit_count-1),-1,-1):
+            Xb[data_index,bit_index + delta_bit] = int(bit[bit_index])
+    
+    return Xb
+            
+
     
 def makedata():
 ################### Load raw data from Excel file
@@ -247,7 +280,7 @@ def SaveFile(Xtrain, Ytrain, Xverify, Yverify, Xtest, Ytest, SaveData):
     
     if SaveData == True:
     # save files to output file
-        filename = 'outputDates.xlsx'    #example output file
+        filename = 'outputDates2.xlsx'    #example output file
         writer = ExcelWriter(filename)
         pd.DataFrame(Xtrain).to_excel(writer,'InputTrain')
         pd.DataFrame(Ytrain).to_excel(writer,'OutputTrain')
@@ -265,7 +298,6 @@ start = time.clock()
 Xt = makedata()
 '''########## Step 1
 ###########rebuild raw data into training data set. 
-
 ######## function dictionary
 #options include cyclic, standardize and calencycle
 #standardize returns 1 output vector
@@ -274,6 +306,8 @@ Xt = makedata()
 #wavelet returns an output matrix X
 '''
 #Xhs, Xhc = cyclic(X*360,0) #convert hours to sine/cosine 
+print"\nPreparing input data..."
+
 Hcos, Hsin = calencycle(Xt,2)
 FAHWDcos, FAHWDsin = cyclic(Xt,3)
 JARWDcos, JARWDsin = cyclic(Xt,4)
@@ -316,19 +350,18 @@ XtrMAN = np.concatenate((Hcos, Hsin, MANWDcos, MANWDsin, MANWS, MANTEMP, MANRH,
 ######## Step 2
 #based on ozone limit and duration of consequtive exceedances (d) in column (i)
 #make training output Y for 8 hr ozone from column i in data X
-
 ######## make output arrays for each station being used (in this case - 2 stations)
 ### function eightave takes training matrix X, column index i, and critical consequtive
 ### exceedance i and makes a matrix of binary columns starting with the 1st column [0] as 1 event
 ### and going to column d-1 consequtive events (total of d columns)
-
 ### function eightave_gt_lt gives 3 output columns only - 1 event, events
 ### less than the critical sconsequtive sequence number, d, and consequtive events
 ### greater than d.
-
 '''
+print"\nPreparing output data..."
 d = 8 #### Max # of consequtive events or critical # of consequtive events
 ### Station 1 FAH
+n = len(Xt)
 i_FAH = 20 # column to average (column begins at 0)
 Y8_FAH = eightave_gt_lt(Xt,i_FAH,d)
 Ytr_FAH = Y8_FAH[len(Y8_FAH)-n:]  #trim the first rows to match the size of X
@@ -343,7 +376,7 @@ i_MAN = 22 # column to average (column begins at 0)
 Y8_MAN = eightave_gt_lt(Xt,i_MAN,d)
 Ytr_MAN = Y8_MAN[len(Y8_MAN)-n:]  #trim the first rows to match the size of X
 
-Ytr_raw = np.concatenate((Y8_FAH, Y8_JAR, Y8_MAN), axis =1)
+Ytr_raw = np.concatenate((Y8_FAH, Y8_JAR, Y8_MAN), axis = 1)  #combine output columns
 ######### Trim first 7 rows off data used for 8 hr ave that have no assigned output
 Xtr = Xtr[7:n,:]
 Ytr_raw = Ytr_raw[7:n,:]
@@ -387,16 +420,16 @@ Ytrain = Ytr[0:train_stop,:]
 Xverify = Xtr[train_stop+1:verify_stop,:]
 Yverify = Ytr[train_stop+1:verify_stop,:]
 
-Xtest = Xtr[verify_stop+1:n,:]
-Ytest = Ytr[verify_stop+1:n,:]
+Xtest = Xtr[verify_stop+1:n2,:]
+Ytest = Ytr[verify_stop+1:n2,:]
 
 #save output training file
-SaveFile(Xtrain,Ytrain, Xverify, Yverify, Xtest, Ytest, True)
+#SaveFile(Xtrain,Ytrain, Xverify, Yverify, Xtest, Ytest, True)
 
     # stop clock
 end = time.clock() 
     
 if (end-start > 60):
-    print "data prepared in {0:.2f} minutes".format((end-start)/60.)
+    print "\nData prepared in {0:.2f} minutes".format((end-start)/60.)
 else:
-    print "data prepared in {0:.2f} seconds".format((end-start)/1.)
+    print "\nData prepared in {0:.2f} seconds".format((end-start)/1.)
