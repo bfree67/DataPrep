@@ -236,14 +236,15 @@ def binaryconvert(X):
     converts integer input array into binary matrix - takes largest integer and 
     determines maximum bits. Puts each 0/1 into appropriate bit bin from LSB to MSB
     '''
-    n = len(X) # length of array data
-    nb_classes = bin(X.max()) #convert max. value to binary to determine bits
+    binX = X[:,23]
+    n = len(binX) # length of array data
+    nb_classes = bin(int(binX.max())) #convert max. value to binary to determine bits
     nb = len(nb_classes[2:]) #strip out first 2 characters and count characters
 
     Xb = np.zeros((n,nb)) #create padded matrix to fill
 
     for data_index in range(n):
-        bit = bin(X[data_index,0])
+        bit = bin(int(binX[data_index]))
         bit = bit[2:]
         bit_count = len(bit)
         delta_bit = nb - bit_count 
@@ -252,9 +253,7 @@ def binaryconvert(X):
             Xb[data_index,bit_index + delta_bit] = int(bit[bit_index])
     
     return Xb
-            
-
-    
+               
 def makedata():
 ################### Load raw data from Excel file
     #### if True, save data to file, otherwise don't
@@ -274,13 +273,13 @@ def makedata():
     X = load_file(data_file_name,XDataSheet)
     return X
     
-def SaveFile(Xtrain, Ytrain, Xverify, Yverify, Xtest, Ytest, SaveData):
+def SaveFile(Xtrain, Ytrain, Xverify, Yverify, Xtest, Ytest, SaveData, File):
 #################### Save converted data into new Excel file    
     newpath = 'c:\\\TARS\PhD\Keras'   #example output path
     
     if SaveData == True:
     # save files to output file
-        filename = 'outputDates2.xlsx'    #example output file
+        filename = File + '.xlsx'    #example output file
         writer = ExcelWriter(filename)
         pd.DataFrame(Xtrain).to_excel(writer,'InputTrain')
         pd.DataFrame(Ytrain).to_excel(writer,'OutputTrain')
@@ -304,10 +303,12 @@ Xt = makedata()
 #cyclic and calencycle each require 2 output vectors
 #use calencycle for time
 #wavelet returns an output matrix X
+#onehotencode returns matrix X, requires integer array input
+#binaryconvert returns matrix X, requires integer array input
 '''
 #Xhs, Xhc = cyclic(X*360,0) #convert hours to sine/cosine 
 print"\nPreparing input data..."
-
+Xb = binaryconvert(Xt)
 Hcos, Hsin = calencycle(Xt,2)
 FAHWDcos, FAHWDsin = cyclic(Xt,3)
 JARWDcos, JARWDsin = cyclic(Xt,4)
@@ -330,21 +331,41 @@ FAHO3= standardize(Xt,20)
 JARO3= standardize(Xt,21)
 MANO3= standardize(Xt,22)
 
+'''
+binX = Xt[:,23]
+n = len(binX) # length of array data
+nb_classes = bin(int(binX.max())) #convert max. value to binary to determine bits
+nb = len(nb_classes[2:]) #strip out first 2 characters and count characters
 
+Xb = np.zeros((n,nb)) #create padded matrix to fill
+
+for data_index in range(n):
+    bit = bin(int(binX[data_index]))
+    bit = bit[2:]
+    bit_count = len(bit)
+    delta_bit = nb - bit_count 
+    
+    for bit_index in range((bit_count-1),-1,-1):
+        Xb[data_index,bit_index + delta_bit] = int(bit[bit_index])
+'''
 #build input matrix
 Xtr = np.concatenate((Hcos, Hsin, FAHWDcos, FAHWDsin, JARWDcos, JARWDsin, 
                        MANWDcos, MANWDsin, FAHWS, MANWS, JARWS, MANTEMP, MANRH, 
                        FAHNO2, JARNO2, MANNO2, FAHSO2, JARSO2, MANSO2, FAHCO, 
-                       JARCO, MANCO, FAHO3, JARO3, MANO3), axis =1)
+                       JARCO, MANCO, FAHO3, JARO3, MANO3, Xb), axis =1)
 
 XtrFAH = np.concatenate((Hcos, Hsin, FAHWDcos, FAHWDsin, FAHWS, MANTEMP, MANRH, 
-                       FAHNO2, FAHSO2, FAHCO, FAHO3), axis =1)
+                       FAHNO2, FAHSO2, FAHCO, FAHO3, Xb), axis =1)
 
 XtrJAR = np.concatenate((Hcos, Hsin, JARWDcos, JARWDsin, JARWS, MANTEMP, MANRH, 
-                       JARNO2, JARSO2, JARCO, JARO3), axis =1)
+                       JARNO2, JARSO2, JARCO, JARO3, Xb), axis =1)
 
 XtrMAN = np.concatenate((Hcos, Hsin, MANWDcos, MANWDsin, MANWS, MANTEMP, MANRH, 
-                       MANNO2, MANSO2, MANCO, MANO3), axis =1)
+                       MANNO2, MANSO2, MANCO, MANO3, Xb), axis =1)
+
+XtrO3 = np.concatenate((Hcos, Hsin, FAHWDcos, FAHWDsin, JARWDcos, JARWDsin, 
+                       MANWDcos, MANWDsin, FAHWS, MANWS, JARWS, MANTEMP, MANRH, 
+                       FAHO3, JARO3, MANO3, Xb), axis =1)
 
 '''
 ######## Step 2
@@ -414,6 +435,9 @@ train_stop = int(n2*train_per)
 verify_stop = train_stop + int(n2*verify_per)
 test_stop = n2 - verify_stop
 
+############## Change data to be saved here....
+Xtr = XtrMAN
+
 Xtrain = Xtr[0:train_stop,:]
 Ytrain = Ytr[0:train_stop,:]
 
@@ -424,7 +448,7 @@ Xtest = Xtr[verify_stop+1:n2,:]
 Ytest = Ytr[verify_stop+1:n2,:]
 
 #save output training file
-#SaveFile(Xtrain,Ytrain, Xverify, Yverify, Xtest, Ytest, True)
+SaveFile(Xtrain,Ytrain, Xverify, Yverify, Xtest, Ytest, True, 'OutputMAN_b')
 
     # stop clock
 end = time.clock() 
