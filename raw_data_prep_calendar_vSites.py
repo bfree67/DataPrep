@@ -222,18 +222,18 @@ def timedelay(X,delay = 0,interval = 1):
     
     return Ytr
 
-def onehotencode(X):
-    '''#converts input array X into a matrix of based on the maximum number in the array
+def onehotencode(X, i):
+    '''#converts input array X in column iinto a matrix of based on the maximum number in the array
     #input array must be integers with sequential classes (like hours or months or days)
     '''
-    nb_classes = X.max()
-    targets = np.array(X.T).reshape(-1) - 1
-    Xhot = np.eye(nb_classes)[targets] + 0.
+    Xar = X[:,i].astype(int) - 1
+    nb_classes = int(Xar.max()) + 1
+    Xhot = np.matrix(np.eye(nb_classes)[Xar])
     return Xhot
 
-def binaryconvert(X):
+def binaryconvert(X, i):
     '''
-    converts integer input array into binary matrix - takes largest integer and 
+    converts integer input array  X on column i, into binary matrix - takes largest integer and 
     determines maximum bits. Puts each 0/1 into appropriate bit bin from LSB to MSB
     '''
     binX = X[:,23]
@@ -308,7 +308,8 @@ Xt = makedata()
 '''
 #Xhs, Xhc = cyclic(X*360,0) #convert hours to sine/cosine 
 print"\nPreparing input data..."
-Xb = binaryconvert(Xt)
+#Xb = binaryconvert(Xt)
+Xb = onehotencode(Xt,23)
 Hcos, Hsin = calencycle(Xt,2)
 FAHWDcos, FAHWDsin = cyclic(Xt,3)
 JARWDcos, JARWDsin = cyclic(Xt,4)
@@ -331,23 +332,7 @@ FAHO3= standardize(Xt,20)
 JARO3= standardize(Xt,21)
 MANO3= standardize(Xt,22)
 
-'''
-binX = Xt[:,23]
-n = len(binX) # length of array data
-nb_classes = bin(int(binX.max())) #convert max. value to binary to determine bits
-nb = len(nb_classes[2:]) #strip out first 2 characters and count characters
 
-Xb = np.zeros((n,nb)) #create padded matrix to fill
-
-for data_index in range(n):
-    bit = bin(int(binX[data_index]))
-    bit = bit[2:]
-    bit_count = len(bit)
-    delta_bit = nb - bit_count 
-    
-    for bit_index in range((bit_count-1),-1,-1):
-        Xb[data_index,bit_index + delta_bit] = int(bit[bit_index])
-'''
 #build input matrix
 Xtr = np.concatenate((Hcos, Hsin, FAHWDcos, FAHWDsin, JARWDcos, JARWDsin, 
                        MANWDcos, MANWDsin, FAHWS, MANWS, JARWS, MANTEMP, MANRH, 
@@ -435,20 +420,41 @@ train_stop = int(n2*train_per)
 verify_stop = train_stop + int(n2*verify_per)
 test_stop = n2 - verify_stop
 
+
+savelist = ['OutputDays','OutputO3','OutputFAH','OutputJAR','OutputMAN']
+suffix = 'hot'
+
+for file_counter in range(len(savelist)):
+
 ############## Change data to be saved here....
-Xtr = XtrMAN
+    if file_counter == 0:
+        Xtr = Xtr
+    elif file_counter == 1:
+        Xtr = XtrO3
+    elif file_counter == 2:
+        Xtr = XtrFAH
+    elif file_counter == 3:
+        Xtr = XtrJAR
+    elif file_counter == 4:
+        Xtr = XtrMAN
+    
+    Xtrain = Xtr[0:train_stop,:]
+    Ytrain = Ytr[0:train_stop,:]
 
-Xtrain = Xtr[0:train_stop,:]
-Ytrain = Ytr[0:train_stop,:]
+    Xverify = Xtr[train_stop+1:verify_stop,:]
+    Yverify = Ytr[train_stop+1:verify_stop,:]
 
-Xverify = Xtr[train_stop+1:verify_stop,:]
-Yverify = Ytr[train_stop+1:verify_stop,:]
+    Xtest = Xtr[verify_stop+1:n2,:]
+    Ytest = Ytr[verify_stop+1:n2,:]
+    
+    filename = savelist[file_counter] + suffix
+    
+    print'\nSaving file ' + filename
 
-Xtest = Xtr[verify_stop+1:n2,:]
-Ytest = Ytr[verify_stop+1:n2,:]
-
-#save output training file
-SaveFile(Xtrain,Ytrain, Xverify, Yverify, Xtest, Ytest, True, 'OutputMAN_b')
+    #save output training file
+    SaveFile(Xtrain,Ytrain, Xverify, Yverify, Xtest, Ytest, 
+             True,      # turn on file saver 
+             filename)   #file name and suffix
 
     # stop clock
 end = time.clock() 
