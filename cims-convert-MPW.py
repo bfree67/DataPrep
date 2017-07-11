@@ -1,8 +1,17 @@
-### Program used to prepare raw data for machine language training
-### Includes functions to covert cyclic data and standardize continuous data
-### Has classifiers for binary comparisons and time delays for outputs
-### Input data file cannot have text headers!
-### 16 May 2017 Brian Freeman
+'''
+Utility to convert Excel data tables into EDD format. Load the file that has been
+stripped of other values and arrange the top 4 rows:
+
+Date	   Temp	   pH	
+Units	   deg C	   pH	
+CAS	      TEMP_LAB	PH_LAB	
+Method	   SM2550	   SM20-4500H-B	
+6/3/2017	33.3	   6.7	1371
+6/4/2017	33.1	   6.81	
+6/5/2017	33.5	   6.8	1301
+
+11 Jul 2017 Brian Freeman
+'''
 
 import time
 import pandas as pd
@@ -82,7 +91,7 @@ def SaveFile(X, SaveData, File):
     
     if SaveData == True:
     # save files to output file
-        filename = savepath + File + '.xlsx'    #example output file
+        filename = savepath + '\\' + File + '.xlsx'    #example output file
         writer = ExcelWriter(filename)
         pd.DataFrame(X).to_excel(writer,'InputTrain')
 
@@ -98,6 +107,8 @@ start = time.clock()
 Xt = makedata()
 obs,cols = np.shape(Xt)
 
+################# Begin set-up and formatting of EDD
+
 EDD = pd.DataFrame(np.zeros((cols-1,1)))
 EDD_lab = pd.DataFrame(np.zeros((cols-1,1)))  #create dummy dataframe
 LC = 'DP1'
@@ -106,7 +117,6 @@ date = Xt[0]
 # set analyte names
 analyte = Xt.iloc[0]
 analyte = analyte.iloc[1:cols]
-#analyte = analyte.reset_index(drop=True)
 analyte = analyte.to_frame().reset_index(drop = True)
 
 # set units
@@ -114,7 +124,17 @@ units = Xt.iloc[1]
 units = units.iloc[1:cols]
 units = units.reset_index(drop=True)
 
-for counter in range (1,obs):  #obs are the number of samples - daily
+# set CAS number
+cas = Xt.iloc[2]
+cas = cas.iloc[1:cols]
+cas = cas.to_frame().reset_index(drop = True)
+
+# set CAS number
+method = Xt.iloc[3]
+method = method.iloc[1:cols]
+method = method.to_frame().reset_index(drop = True)
+
+for counter in range (4,obs):  #obs are the number of samples - daily
     day = str(date[counter]) #take individual date and strip away time portion
     day = day[0:10]
     
@@ -135,6 +155,8 @@ for counter in range (1,obs):  #obs are the number of samples - daily
     EDD_lab = EDD_lab.assign(Location_Code = LC)
     EDD_lab = EDD_lab.assign(Analysis_Location = 'LB')
     EDD_lab = EDD_lab.assign(Chemical_Name = analyte)
+    EDD_lab = EDD_lab.assign(Cas_Rn = cas)
+    EDD_lab = EDD_lab.assign(Lab_Anl_Method_Name = method)
     EDD_lab = EDD_lab.assign(Result_Value = result)
     EDD_lab = EDD_lab.assign(Result_unit = units)
     EDD_lab = EDD_lab.assign(Dilution_Factor = '1')
@@ -151,6 +173,7 @@ for counter in range (1,obs):  #obs are the number of samples - daily
 EDD = EDD.iloc[obs:len(EDD)]   #drop first rows that were just padded
 EDD = EDD.drop([0], axis = 1)
 EDD = EDD.reset_index(drop=True)
+EDD = EDD.dropna()  #remove rows with NAN - only occuring in the Results column
 
 SaveData = True
 Filename = 'EDD_Lab'
