@@ -302,8 +302,11 @@ def gapfiller(Xt,g=4):
             if np.isnan(Xt[row,col]):
                 gap[row,col] = 1.
                 Xt[row,col] = round(np.nanmin(X[:,col]), 4)
-            if Xt[row,col]==0:
-                Xt[row,col] = round(np.nanmin(X[:,col]), 4)
+                
+            #convert local 0's to min real value    
+            if Xt[row,col]==0.:
+                s=np.ma.masked_equal(Xt[:,col], 0.0, copy=False)
+                Xt[row,col] = round(np.nanmin(s), 4)
                 
 
 ### search for gaps in gap matrix (gap is a 1)
@@ -362,7 +365,7 @@ Xtr = np.concatenate((Hrcycle, Monthcos, FAHWDfft, JARWDfft, MANWDfft,
 #############Save output training file
 filename = "ModifiedData"
 SaveFile(Xt, 
-             False,      # turn on file saver 
+             True,      # turn on file saver 
              filename)   #file name and suffix
 
     # stop clock
