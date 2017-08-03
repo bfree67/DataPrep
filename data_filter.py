@@ -11,7 +11,6 @@ import numpy as np
 import copy
 import easygui
 
-
 def load_file(datafile,worksheet=0):
 ### - Load data from excel file function
 ### Should not have any index on first column, but if it does, will be col 0
@@ -122,7 +121,7 @@ Xn = np.asmatrix(np.arange(tot_cols))*1.
 
 ##### Select rows that have history of exceedances
 ##### Create a matrix 
-for row in range(1000):
+for row in range(tot_rows):
     hour = int(Xt[row,hr_col])
     month = int(Xt[row,mn_col])
     if MH[month,hour] == 1:
