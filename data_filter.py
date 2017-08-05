@@ -2,7 +2,7 @@
 Filters data sets by removing known hour sets that don't have exceedances
 based on hour/month counts
 Requires loading 2 files - the data set (X) and hr/month filter (mh)
-First identifies 
+
 '''
 import time
 import pandas as pd
@@ -55,8 +55,24 @@ def cleanzero(X):
     Xclean = np.multiply(X,Clean) #elementwise multiply to convert low limits to 0
     
     return Xclean   
-                
+
 def makedata():
+################### Load raw data from Excel file from 1 worksheet
+    #### if True, save data to file, otherwise don't
+
+    ########### Set name of data file
+    title = 'Choose file with data table to format...'
+    data_file_name = easygui.fileopenbox(title)
+    print "Loading raw data file:", data_file_name, "\n"
+
+    #Excel WorkSheet 0 = input X data, WorkSheet 1 = input Y data
+
+    #load data for processing
+    X = load_file(data_file_name,0)
+    
+    return X
+               
+def makedata2():
 ################### Load raw data from Excel file
     #### if True, save data to file, otherwise don't
 
@@ -67,17 +83,18 @@ def makedata():
 
     #Excel WorkSheet 0 = input X data, WorkSheet 1 = input Y data
 
-    XDataSheet = 0
-
     #load data for processing
-    X = load_file(data_file_name,XDataSheet)
-    return X
+    X = load_file(data_file_name,0)
+    Y = load_file(data_file_name,1) + 0.
     
-def SaveFile(X, SaveData):
+    return X,Y
+    
+def SaveFile(X, Y, SaveData):
 #################### Save converted data into new Excel file    
   
     if SaveData == True:
     # save files to output file
+        print("\nSaving filtered data...")
         title = "Choose folder to save formatted EDD in..."    
         savepath = easygui.diropenbox(title)
         
@@ -90,7 +107,8 @@ def SaveFile(X, SaveData):
             
         writer = ExcelWriter(filename)
         
-        pd.DataFrame(X).to_excel(writer,'Filtered')
+        pd.DataFrame(X).to_excel(writer,'Filt-Xtrain')
+        pd.DataFrame(Y).to_excel(writer,'Filt-Ytrain')
 
         msg = 'File saved in ', filename
         easygui.msgbox(msg)
@@ -103,8 +121,10 @@ def SaveFile(X, SaveData):
 ##### Call data 
 msg = 'Select file with data set'
 easygui.msgbox(msg)      
-X = makedata()
+X, Y = makedata2()
+
 Xt = copy.copy(X)
+Yt = copy.copy(Y)
 
 msg = 'Select file with Month-Hour Filter'
 easygui.msgbox(msg)      
@@ -113,18 +133,29 @@ MH = makedata()
 print"\nPreparing input data..."
 
 tot_rows, tot_cols = np.shape(Xt)
-tot_months,tot_hours = np.shape(MH)
-hr_col = 3
-mn_col = 2
+y_rows,y_cols = np.shape(Yt)
 
-Xn = np.asmatrix(np.arange(tot_cols))*1.
+tot_months,tot_hours = np.shape(MH)
+
+#############################SELECT COLUMNS WITH HR AND MONTH
+hr_col = 2
+mn_col = 1
+
+Xn = np.asmatrix(np.arange(tot_cols))*1.  ## make initial row
+Yn = np.asmatrix(np.arange(y_cols))*1.  ## make initial row
 
 ##### Select rows that have history of exceedances
 ##### Create a matrix 
+print"\nFiltering input data..."
 for row in range(tot_rows):
     hour = int(Xt[row,hr_col])
-    month = int(Xt[row,mn_col])
+    month = int(Xt[row,mn_col])-1
     if MH[month,hour] == 1:
-        Xn = np.concatenate((Xn,np.asmatrix(Xt[row,:])), axis = 0) 
+        Xn = np.concatenate((Xn,np.asmatrix(Xt[row,:])), axis = 0)
+        Yn = np.concatenate((Yn,np.asmatrix(Yt[row,:])), axis = 0)
+    
+    ### show percent completion and show on same line
+    if row%100 == 0:    
+        print('\r'+str(round(row*100/tot_rows))+'%  Complete\r'),
         
-SaveFile(Xn, True)
+SaveFile(Xn, Yn, True)
