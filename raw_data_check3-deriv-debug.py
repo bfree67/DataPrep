@@ -154,30 +154,35 @@ def linedelta(X):
 
 def findthreshold(X):
    
+    #use the expected maximum value of the data set
     ExpectedMax = 55.
     
+    #find median of rows but reject all greater than the expected max
     Xmedian = np.asmatrix(np.median(X,axis=1))
-    Xmed_fil = (Xmedian < ExpectedMax)+0.
+    Xmed_fil = (Xmedian < ExpectedMax)+0.  #make a boolean filter
     Xmedian = np.multiply(Xmedian,Xmed_fil)
     
+    #make range of each row
     Xrange = np.asmatrix(np.max(X, axis=1)-np.min(X, axis=1))
 
-    #remove duplicates and sort in ascending order
+    #remove median duplicates and sort in ascending order to put 0 front
     Xmedsort=pd.DataFrame(Xmedian).drop_duplicates().values
     Xmedsort = np.sort(Xmedsort[:,0])
     
+    #remove any 0 term
     if Xmedsort[0] == 0.:
         Xmedsort = Xmedsort[1:len(Xmedsort)]
     
     rows_MedianSort = len(Xmedsort)
-    Xavemedian = np.zeros(rows_MedianSort)
+    Xavemedian = np.zeros(rows_MedianSort)   #initialize array to hold averages
     
-    #drop first element cause it will be a zero
+    #average ranges of similar medians
     for row in range(rows_MedianSort):
         s = (Xmedian == Xmedsort[row]) + 0.   ## make boolean mask
         s1 = np.multiply(s,Xrange)        ## filter out 
         Xavemedian[row] = round(s1[s1>0.].mean() + 1., 1)
     
+    ##find largest average median in array to use as threshold
     threshold = np.max(Xavemedian) + 1.
     
     return threshold    
