@@ -153,18 +153,32 @@ def linedelta(X):
     return Xdelta
 
 def findthreshold(X):
-    tot_rows,tot_cols=np.shape(X)
-    xsum = 0.
+   
+    ExpectedMax = 55.
     
-    for col in range(tot_cols):
-        Xrange =X[:,col]
-        Xrngfilter = (Xrange > 55.) + 0.
-                     
-        xcount = int(Xrngfilter.sum())
-        Xsort = np.sort(Xrange)
-        xsum += np.average(Xsort[0:xcount,col])
+    Xmedian = np.asmatrix(np.median(X,axis=1))
+    Xmed_fil = (Xmedian < ExpectedMax)+0.
+    Xmedian = np.multiply(Xmedian,Xmed_fil)
     
-    threshold = xsum / (tot_cols*1.)
+    Xrange = np.asmatrix(np.max(X, axis=1)-np.min(X, axis=1))
+
+    #remove duplicates and sort in ascending order
+    Xmedsort=pd.DataFrame(Xmedian).drop_duplicates().values
+    Xmedsort = np.sort(Xmedsort[:,0])
+    
+    if Xmedsort[0] == 0.:
+        Xmedsort = Xmedsort[1:len(Xmedsort)]
+    
+    rows_MedianSort = len(Xmedsort)
+    Xavemedian = np.zeros(rows_MedianSort)
+    
+    #drop first element cause it will be a zero
+    for row in range(rows_MedianSort):
+        s = (Xmedian == Xmedsort[row]) + 0.   ## make boolean mask
+        s1 = np.multiply(s,Xrange)        ## filter out 
+        Xavemedian[row] = round(s1[s1>0.].mean() + 1., 1)
+    
+    threshold = np.max(Xavemedian) + 1.
     
     return threshold    
     
@@ -230,7 +244,10 @@ def largegapfill(X):
                 bad_diff = Matdiff[mnth,hr]
                 
                 #### update cell
-                Xtemp[row,col] = round(sum_row/n_row,1)+bad_diff/2.
+                if n_row/tot_cols > 0.5:
+                    Xtemp[row,col] = round(sum_row/n_row,1)+bad_diff/2.
+                else:
+                    Xtemp[row,col] = round(sum_row/n_row,1)
                 
         print '\r',round(((row*1.)/(tot_rows*1.))*100.,0),"% complete \r", 
         
@@ -288,23 +305,7 @@ Xtemp = copy.copy(Xt[:,14:19])     #temperature columns
 
 #value = findthreshold(Xtemp)
 
-tot_rows,tot_cols=np.shape(Xtemp)
-xsum = 0.
-xmedian = 0.
-    
-for col in range(tot_cols):
-    Xrange =Xtemp[:,col]
-    Xrngfilter = (Xrange < 55.) + 0.
-                     
-    xcount = int(Xrngfilter.sum())
-    xzero = np.count_nonzero(Xrange[0:xcount])
-    xstart = xcount - xzero
-    Xsort = np.sort(Xrange)
-    xsum += np.average(Xsort[xstart:xcount])
-    xmedian += np.median(Xsort[xstart:xcount])
-    
-threshold = round(xsum / tot_cols,1)
-thresh_median = round(xmedian / tot_cols,1)
+thr = findthreshold(Xtemp)
 
 
 print'\n Filling in data gaps...'
