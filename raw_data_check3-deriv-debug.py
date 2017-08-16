@@ -4,7 +4,7 @@ Input data file has text headers!
 Fills in empty cells by averaging between gaps
 Replaces 0 with lowest value
 
-1 AUG 2017 Brian Freeman
+16 AUG 2017 Brian Freeman
 '''
 import time
 import pandas as pd
@@ -153,7 +153,7 @@ def linedelta(X):
     return Xdelta
 
 def findthreshold(X):
-   
+   #estimates threshold from data set and returns a scalar
     #use the expected maximum value of the data set
     ExpectedMax = 55.
     
@@ -184,24 +184,35 @@ def findthreshold(X):
     
     ##find largest average median in array to use as threshold
     threshold = np.max(Xavemedian) + 1.
-    
-    return threshold    
-    
+     
+    return threshold
 
-def rangecheck(X):
+def medabsdev(X, Threshold):
+    ## returns filter mask array where 1 is an outlier or zero
+    ## threshold may have to be found for each parameter
+    ##Threshold = 100. for temp
+    
+    Dmed = np.asmatrix(np.median(X,axis=1)).T
+    Dmax = np.max(np.abs(X-Dmed),axis=1) 
+    Dmax = np.square(Dmax)
+    
+    #add outliers and zeros
+    Outliers = ((Dmax > Threshold) + 0.)
+       
+    return Outliers
+
+def rangecheck(X,threshold):
     ### find zeros (gaps) and out of range values in a dataset X
     ### out of ranges max and mins
-    max_expected = 55.        #for temperature
-    #max_expected = 14.      #for windspeed
-    threshold = round(max_expected * .2, 1)
+    ### Threshold = (X - Xmedian)^2
     
     tot_rows,tot_cols=np.shape(X)
     #make an array that indicates the row has out of range elements
     
     Xbad = (X == 0.) + 0.   #make matrix of bad elements by finding zeros first
    
-    #find out of range elements in rows at same time
-    Xrnglist = ((np.max(X, axis = 1)-np.min(X, axis = 1)) > threshold) + 0.
+    #find outliers
+    Xrnglist = medabsdev(X, threshold)  ##call function - require threshold
     zeros = 0
     range_err = 0
     for row in range(tot_rows):
@@ -209,13 +220,13 @@ def rangecheck(X):
             for col in range(tot_cols):          
                 if Xtemp[row,col] != 0.:  #for non-zero elements in the row
                     ### compare each element to the row median
-                    ### if the difference is > 10, the element is bad
-                    if abs(Xtemp[row,col] - np.median(Xtemp[row,:])) > threshold \
+               
+                    if np.square(Xtemp[row,col] - np.median(Xtemp[row,:])) > threshold \
                        and np.median(Xtemp[row,:]) != 0.:                        
                         Xbad[row,col] = 1.
                         range_err += 1
-                    else:
-                        Xbad[row,col] = 0.
+                    #else:
+                        #Xbad[row,col] = 0.
                 else:
                     zeros += 1
     print "\n",zeros,"gaps detected"
@@ -224,10 +235,12 @@ def rangecheck(X):
     
     return Xbad
                      
-def largegapfill(X):
+def largegapfill(X,threshold):
 ##fill gaps for area data such as temp, wind speed or humidity that is not local
+##threshold required to pass to rangecheck functions    
+
     tot_rows,tot_cols=np.shape(X)
-    Xbad = rangecheck(X)  ## check for zeros and out of range values
+    Xbad = rangecheck(X, threshold)  ## check for zeros and out of range values
     
     for row in range(tot_rows):
         for col in range(tot_cols):
@@ -240,7 +253,7 @@ def largegapfill(X):
                     if Xbad[row,cell] == 0.:
                         sum_row += Xtemp[row,cell]
                         n_row += 1.
-                ##include differential modifier        
+                ##include differential modifier - builds month-hour matrix       
                 Matdiff = timediffmat(X_indices, Xtemp, col)
                 mnth = int(X_indices[row,2]-1)
                 hr = int(X_indices[row,3])
@@ -310,7 +323,8 @@ Xtemp = copy.copy(Xt[:,14:19])     #temperature columns
 
 #value = findthreshold(Xtemp)
 
-thr = findthreshold(Xtemp)
+Xbad = rangecheck(Xtemp,50.)
+Xtempnew = largegapfill(Xtemp,50.)
 
 
 print'\n Filling in data gaps...'
