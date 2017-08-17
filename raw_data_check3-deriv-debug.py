@@ -196,8 +196,11 @@ def medabsdev(X, Threshold):
     Dmax = np.max(np.abs(X-Dmed),axis=1) 
     Dmax = np.square(Dmax)
     
+    Zeros = np.asmatrix((len(X.T)-np.count_nonzero(X, axis =1))+0.).T
+    
     #add outliers and zeros
-    Outliers = ((Dmax > Threshold) + 0.)
+    Outliers = ((Dmax > Threshold) + 0.) + Zeros
+    Outliers = (Outliers > 1.) + 0.
        
     return Outliers
 
@@ -221,8 +224,8 @@ def rangecheck(X,threshold):
                 if Xtemp[row,col] != 0.:  #for non-zero elements in the row
                     ### compare each element to the row median
                
-                    if np.square(Xtemp[row,col] - np.median(Xtemp[row,:])) > threshold \
-                       and np.median(Xtemp[row,:]) != 0.:                        
+                    if np.square(X[row,col] - np.median(X[row,:])) > threshold \
+                       and np.median(X[row,:]) != 0.:                        
                         Xbad[row,col] = 1.
                         range_err += 1
                     #else:
@@ -263,9 +266,9 @@ def largegapfill(X,threshold):
                 
                 #### update cell
                 if n_row/tot_cols > 0.5:
-                    Xtemp[row,col] = round(sum_row/n_row,1)+bad_diff/2.
+                    X[row,col] = round(sum_row/n_row,1)+bad_diff/2.
                 else:
-                    Xtemp[row,col] = round(sum_row/n_row,1)
+                    X[row,col] = round(sum_row/n_row,1)
                 
         print '\r',round(((row*1.)/(tot_rows*1.))*100.,0),"% complete \r", 
         
@@ -318,65 +321,17 @@ X_indices = copy.copy(Xt[:,0:4])  #index, year, month and hr
 Xwind = copy.copy(Xt[:,4:9]) #wind direction
 Xspeed = copy.copy(Xt[:,9:14]) #wind speed
 Xtemp = copy.copy(Xt[:,14:19])     #temperature columns
+Xrh = copy.copy(Xt[:,19:23])     #RH columns
+Xso2 = copy.copy(Xt[:,23:28])     #SO2 columns
+Xno2 = copy.copy(Xt[:,28:33])     #NO2 columns
+Xo3 = copy.copy(Xt[:,33:37])     #temperature columns
 
-#Xbad = largegapfill(Xtemp)
 
-#value = findthreshold(Xtemp)
-
-Xbad = rangecheck(Xtemp,50.)
-Xtempnew = largegapfill(Xtemp,50.)
-
+#Xbad = rangecheck(Xtemp,50.)
+#Xtempnew = largegapfill(Xtemp,50.)  
+Xspeednew = largegapfill(Xspeed,100.)
 
 print'\n Filling in data gaps...'
-#Xgap = roundoff(gapfiller(Xtemp,4),1)
-
-#Xwindfill = roundoff(largegapfill(Xwind),0)
-#Xspeedfill = roundoff(largegapfill(Xspeed),1)
-#Xtempfill = roundoff(largegapfill(Xtemp),0)
-
-#print'Making delta table...'
-#Xtemp_d = roundoff(linedelta(Xgapfill),1)
-        
-#XnewTemp = rangeremove(Xtempfill, 5.)
-
-#Derivmat = timediffmat(X_indices, Xtemp, 0)
-
-'''
-tot_rows,tot_cols=np.shape(Xtemp)
-for row in range(tot_rows): 
-    deltaX = np.max(Xtemp[row,:])-np.min(Xtemp[row,:])
-    
-    if deltaX > 10.:  #find a bad row - the threshold is 10. by default
-        bad_mean = round(np.true_divide(Xtemp[row,:].sum(0),(Xtemp[row,:]!=0.).sum(0)),1)     #take average of row
-            #bad_std = round(X[row,:].std(),1)       #take std of bad row
-        bad_list = (np.abs(Xtemp[row,:]-bad_mean) > threshold) + 0.   #if range > threshold, its a 1
-        bad_ind = np.argmax(bad_list)   #make a list of 0's and 1 (1 is bad)
-        sum_good = 0.    # initialize summer and counter
-        n_good = 0.
-        
-        tot_bad = len(bad_list)
-        
-        for i in range(tot_bad):
-            
-            if i != bad_ind:            #if the the element is not bad, sum and count
-                sum_good += Xtemp[row,i]
-                n_good += 1
-            else:
-                Matdiff = timediffmat(X_indices, Xtemp, bad_ind)
-                mnth = int(X_indices[row,2]-1)
-                hr = int(X_indices[row,3])
-                if hr > 23:
-                    hr = 0
-                bad_diff = Matdiff[mnth,hr]
-                #print row, bad_ind, bad_diff
-
-                                       
-        new_ave = round((sum_good/n_good)+(bad_diff/2.),1)  #take average of good elements
-        Xtemp[row,bad_ind]=new_ave #update bad element
-        
-    #print status on same line    
-    print "\r" + str(round(row/(tot_rows*1.)*100,0))+"% complete \r",
-'''
 
         
 print '\nFinished'
