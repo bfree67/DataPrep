@@ -264,21 +264,21 @@ Xtemp = copy.copy(Xt[:,14:19])      #temperature columns
 Xrh = copy.copy(Xt[:,19:23])        #RH columns
 Xso2 = copy.copy(Xt[:,23:28])       #SO2 columns
 Xno2 = copy.copy(Xt[:,28:33])       #NO2 columns
-Xo3 = copy.copy(Xt[:,33:37])        #O3 columns
+Xo3 = copy.copy(Xt[:,33:38])        #O3 columns
 
 #Xbad = medabsdev(Xtemp,50.)
 #Xtempnew = gapfill(Xtemp,50.)  
-#Xspeednew = gapfill(Xspeed,100.)
-Xso2new = gapfill(Xso2, 1.1)
+Xo3new = gapfill(Xo3,1.1)
+#Xso2new = gapfill(Xso2, 1.1)
 
 print'\n Filling in data gaps...'
 
-Xtr = Xso2new
+Xtr = Xo3new
 
 #############Save output training file
 filename = "Dataset"
 SaveFile(Xtr, 
-             False,      # turn on file saver 
+             True,      # turn on file saver 
              filename)   #file name and suffix
         
 print '\nFinished'
