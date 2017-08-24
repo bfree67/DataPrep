@@ -17,6 +17,7 @@ from sklearn import preprocessing
 import pywt    # for wavelet processing
 import easygui 
 import datetime
+from seasonal import fit_seasons, adjust_seasons
 
 current_datetime = datetime.datetime.now()
 current_datetime.strftime('%x %X')
@@ -50,9 +51,9 @@ def load_file(datafile,worksheet=0):
     end = time.clock() 
     
     if (end-start > 60):
-        print "Data loaded in {0:.2f} minutes".format((end-start)/60.)
+        print "Data loaded in {0:.1f} minutes".format((end-start)/60.)
     else:
-        print "Data loaded in {0:.2f} seconds".format((end-start)/1.)
+        print "Data loaded in {0:.1f} seconds".format((end-start)/1.)
     
     data = data_fil.fillna(0.).values #convert all NaN to 0. and converts to np.matrix
     
@@ -85,8 +86,8 @@ def cyclic(X,i):
     X = np.asmatrix(X[:,i]).T
     Xcyc = makezeromatrix(X,2)
     
-    Xsin = cleanzero(np.sin(np.deg2rad(X)))
-    Xcos = cleanzero(np.cos(np.deg2rad(X)))
+    Xsin = cleanzero(np.sin(np.deg2rad(X))) + 0.
+    Xcos = cleanzero(np.cos(np.deg2rad(X))) + 0.
     
     Xcyc[:,0:1] = Xsin[:,0] #make broadcastable
     Xcyc[:,1:2] = Xcos[:,0]
@@ -104,11 +105,13 @@ def standardize(X, st, end):
 
     return StandX
 
-def nostandardize(X,i):
-#standardize data (Mean = 0, STD = 1) by calling the column, i
-#and data matrix X
-    StandX = np.asmatrix(X[:,i])
-    return StandX.T
+def nostandardize(X, st, end):
+# format mstrix without standardizing columns 
+# st = beginning of columns indices in data matrix X
+# end = end of columns indices. Needs to add +1 to include in temp marix
+# for a single column, st = end
+    StandX = X[:,st:end+1]
+    return StandX
     
 def calencycle(X,i):
 #convert recurring calendar data (such as hours, days of the week or month) 
@@ -118,8 +121,8 @@ def calencycle(X,i):
 #Returns 2 column matrix
     
     MaxSeg = (2*np.pi)/(np.nanmax(X[:,i])+1) # take max and add 1 to it
-    CalSinX = cleanzero(np.asmatrix(np.sin(X[:,i]*MaxSeg))).T
-    CalCosX = cleanzero(np.asmatrix(np.cos(X[:,i]*MaxSeg))).T
+    CalSinX = cleanzero(np.asmatrix(np.sin(X[:,i]*MaxSeg))).T + 0.
+    CalCosX = cleanzero(np.asmatrix(np.cos(X[:,i]*MaxSeg))).T + 0.
     
     Cal = np.concatenate((CalSinX,CalCosX), axis=1)
 
@@ -367,6 +370,42 @@ def submonth(X,Y):
                 Ymin = np.concatenate((Ymin,np.matrix(Y[row,:])),axis=0)
 
     return np.matrix(Xmaj), np.matrix(Ymaj), np.matrix(Xmin), np.matrix(Ymin)    
+
+def deseasonal(X):
+    tot_cols = len(X.T)
+    if tot_cols > len(X):
+        tot_cols = len(X)
+    Xsea = copy.copy(X)
+    for col in range(tot_cols):
+        s1 = Xsea[:,col]
+        s2 = np.array(s1).reshape(-1,).tolist()
+        Seasons, Trend = fit_seasons(s2)
+        Xsea[:,col] = Trend
+    return Xsea
+
+def balance(X,Y):
+#balance rows of 0's and 1s    
+    zd = (np.sum(Y, axis =1) > 0.) + 0.  #make filter with exceedancs from row as 1
+    zd_sum = zd.sum() * 0.  ## control the ratio of 0 rows
+    zd_count = 0.
+    ###build test rwo selection filter 
+    for i in range(len(Y)):
+        if zd[i]==0. and zd_count < zd_sum:
+            zd[i] = 2.   #use 2 to identify 0's
+            zd_count += 1.
+
+    #delete rows that are not masked by zd
+    x_rows, x_cols = np.shape(X)
+    y_rows, y_cols = np.shape(Y)
+    zX = np.asmatrix(np.zeros((x_cols,1))).T 
+    zY = np.asmatrix(np.zeros((y_cols,1))).T
+    
+    for i in range(y_rows):
+        if zd[i]>0.:
+            zX = np.concatenate((zX,X[i,:]), axis = 0)
+            zY = np.concatenate((zY,Y[i,:]), axis = 0)
+    
+    return zX, zY
                
 def makedata():
 ################### Load raw data from Excel file
@@ -440,38 +479,41 @@ print"\nPreparing input data..."
 #Xb = binaryconvert(Xt)
 fftlength = 8
 ################ make index and Month/Hr columns
-Ind = nostandardize(Xt,0)
-Mnth = nostandardize(Xt,2)
-Hr = nostandardize(Xt,3)
+Ind = nostandardize(Xt,0,0)
+MnthHr = nostandardize(Xt,2,3)
 
 HrCyc = calencycle(Xt,3)
 MnthCyc = calencycle(Xt,2)
+
+#Xdesea = deseasonal(Xt[:,4:])  #################### deseason data
+
 #Hrcycle = binaryconvert(Xt,2)
-F_WD = cyclic(Xt,4)
-J_WD = cyclic(Xt,5)
-M_WD = cyclic(Xt,6)
-R_WD = cyclic(Xt,7)
-S_WD = cyclic(Xt,8)
-#######################################
-StWS = standardize(Xt, 9, 13)
-StTEMP = standardize(Xt, 14, 18)
-StRH = standardize(Xt, 19, 22)
-StSO2 = standardize(Xt, 23, 27)
-StNO2 = standardize(Xt, 28, 32)
-StO3 = standardize(Xt, 33, 37)
+F_WD = calencycle(Xt,4)
+J_WD = calencycle(Xt,5)
+M_WD = calencycle(Xt,6)
+R_WD = calencycle(Xt,7)
+S_WD = calencycle(Xt,8)
 
-fF_O3 = fft(Xt,33,fftlength)
-fJ_O3 = fft(Xt,34,fftlength)
-fM_O3 = fft(Xt,33,fftlength)
-fR_O3 = fft(Xt,33,fftlength)
-fS_O3 = fft(Xt,33,fftlength)
+WS = standardize(Xt,9,13)
+TEMP = standardize(Xt,14,18)
+ESO2 = standardize(Xt,19,23)
+ENO2 = standardize(Xt,24,28)
+EO3 = standardize(Xt,29,33)
+USO2 = standardize(Xt,34,38)
+UNO2 = standardize(Xt,39,43)
+UO3 = standardize(Xt,44,48)
 
-Xtr = np.concatenate((Ind, Mnth, Hr, MnthCyc, HrCyc, 
-                      F_WD, J_WD, M_WD, R_WD, S_WD,
-                      StWS, StTEMP, StRH, 
-                      StSO2, StNO2, StO3), axis = 1) 
-
-                      #fF_O3, fJ_O3,fM_O3,fR_O3,fS_O3,), axis = 1)
+'''
+WS = standardize(Xt,11,11)
+TEMP = standardize(Xt,16,16)
+SO2 = nostandardize(Xt,21,21)
+NO2 = nostandardize(Xt,26,26)
+O3 = nostandardize(Xt,31,31)
+'''
+Xtr = np.concatenate((Ind, MnthHr, MnthCyc, HrCyc, 
+                      F_WD, J_WD, M_WD, R_WD, S_WD, WS, TEMP,
+                      USO2, UNO2, UO3,
+                      ESO2, ENO2, EO3), axis = 1)
 
 ######## Step 2
 #based on ozone limit and duration of consequtive exceedances (d) in column (i)
@@ -488,35 +530,34 @@ print"\nPreparing output data..."
 d = 8 #### Max # of consequtive events or critical # of consequtive events
 ### Station 1  
 n = len(Xt)
-i_st1 = 33 # column to average (column begins at 0)
-
-Y8_st1 = eightonly(Xt, i_st1)
-#Y8_FAH = eightave_gt_lt(Xt,i_FAH,d)
-Ytr_st1 = Y8_st1[len(Y8_st1)-n:]  #trim the first rows to match the size of X
+i_st1 = 29 # column to average (column begins at 0)
+#Y8_st1 = eightonly(Xt, i_st1)
+Y8_st1 = np.asmatrix((Xt[:,i_st1] > TWAozone) + 0.).T
+#Ytr_st1 = Y8_st1[len(Y8_st1)-n:]  #trim the first rows to match the size of X
 
 ### Station 2 
-i_st2 = 34 # column to average (column begins at 0)
-Y8_st2 = eightonly(Xt, i_st2)
-#Y8_JAR = eightave_gt_lt(Xt,i_JAR,d)
-Ytr_st2 = Y8_st2[len(Y8_st2)-n:]  #trim the first rows to match the size of X
+i_st2 = 30 # column to average (column begins at 0)
+#Y8_st2 = eightonly(Xt, i_st2)
+Y8_st2 = np.asmatrix((Xt[:,i_st2] > TWAozone) + 0.).T
+#Ytr_st2 = Y8_st2[len(Y8_st2)-n:]  #trim the first rows to match the size of X
 
 ### Station 3
-i_st3 = 35 # column to average (column begins at 0)
-Y8_st3 = eightonly(Xt, i_st3)
-#Y8_MAN = eightave_gt_lt(Xt,i_MAN,d)
-Ytr_st3 = Y8_st3[len(Y8_st3)-n:]  #trim the first rows to match the size of X
+i_st3 = 31 # column to average (column begins at 0)
+#Y8_st3 = eightonly(Xt, i_st3)
+Y8_st3 = np.asmatrix((Xt[:,i_st3] > TWAozone) + 0.).T
+#Ytr_st3 = Y8_st3[len(Y8_st3)-n:]  #trim the first rows to match the size of X
 
 ### Station 4
-i_st4 = 36 # column to average (column begins at 0)
-Y8_st4 = eightonly(Xt, i_st4)
-#Y8_MAN = eightave_gt_lt(Xt,i_MAN,d)
-Ytr_st4 = Y8_st4[len(Y8_st4)-n:]  #trim the first rows to match the size of X
+i_st4 = 32 # column to average (column begins at 0)
+#Y8_st4 = eightonly(Xt, i_st4)
+Y8_st4 = np.asmatrix((Xt[:,i_st4] > TWAozone) + 0.).T
+#Ytr_st4 = Y8_st4[len(Y8_st4)-n:]  #trim the first rows to match the size of X
 
 ### Station 5
-i_st5 = 37 # column to average (column begins at 0)
-Y8_st5 = eightonly(Xt, i_st5)
-#Y8_MAN = eightave_gt_lt(Xt,i_MAN,d)
-Ytr_st5 = Y8_st5[len(Y8_st5)-n:]  #trim the first rows to match the size of X
+i_st5 = 33 # column to average (column begins at 0)
+#Y8_st5 = eightonly(Xt, i_st5)
+Y8_st5 = np.asmatrix((Xt[:,i_st5] > TWAozone) + 0.).T
+#Ytr_st5 = Y8_st5[len(Y8_st5)-n:]  #trim the first rows to match the size of X
 
 Ytr_raw = np.concatenate((Y8_st1, Y8_st2, Y8_st3, Y8_st4, Y8_st5), axis = 1)  #combine output columns
 
@@ -541,7 +582,7 @@ interval = 24  # delay interval/step size
 
 ####### For timedelay function, make the delay value the max number of delay
 rows,cols = np.shape(Xtr)
-time_shift = 8
+time_shift = 12
 Xind = Xtr[time_shift:,0:3]
 Xdelay = Xtr[:,3:cols]
 
@@ -579,8 +620,8 @@ verify_stop = train_stop + int(n3*verify_per)
 test_stop = n3 - verify_stop
 
 #savelist = ['OutputDays','OutputO3','OutputFAH','OutputJAR','OutputMAN']
-savelist = ['Output']
-suffix = '-TDNN-'
+savelist = ['Output-']
+suffix = 'TDNN-'
 
 for file_counter in range(len(savelist)):
     '''  
@@ -600,7 +641,7 @@ for file_counter in range(len(savelist)):
     Yfil = Ytr[0:train_stop,:]
     
     #####filter
-    Use_filter = True
+    Use_filter = False
     
     if Use_filter == True:
         #Xtrain, Ytrain = exceed(Xfil, Yfil,8)  ### filter data for exdeedance in training set only
@@ -608,6 +649,8 @@ for file_counter in range(len(savelist)):
     else:
         Xtrain = Xfil
         Ytrain = Yfil
+        
+    Xtrain, Ytrain = balance(Xtrain,Ytrain)
 
     Xverify = Xtr[train_stop+1:verify_stop,:]
     Yverify = Ytr[train_stop+1:verify_stop,:]
@@ -615,7 +658,9 @@ for file_counter in range(len(savelist)):
     Xtest = Xtr[verify_stop+1:n2,:]
     Ytest = Ytr[verify_stop+1:n2,:]
     
-    filename = savelist[file_counter]+suffix
+    Xtest,Ytest = balance(Xtest,Ytest)
+            
+    filename = savelist[file_counter]+str(time_shift)+'-'
     
     print'\nSaving file ' + filename
 
@@ -627,6 +672,6 @@ for file_counter in range(len(savelist)):
 end = time.clock()  # stop clock
     
 if (end-start > 60):
-    print "\nData prepared in {0:.2f} minutes".format((end-start)/60.)
+    print "\nData prepared in {0:.1f} minutes".format((end-start)/60.)
 else:
-    print "\nData prepared in {0:.2f} seconds".format((end-start)/1.)
+    print "\nData prepared in {0:.1f} seconds".format((end-start)/1.)
